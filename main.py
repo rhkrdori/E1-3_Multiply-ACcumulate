@@ -307,9 +307,13 @@ def evaluate_case(case_key, case, filters):
 
     score_cross = mac_operation(input_matrix_, filter_group["Cross"])
     score_x = mac_operation(input_matrix_, filter_group["X"])
-    verdict = decide_winner(score_cross, score_x, "Cross", "X", "UNDECIDED")
 
+    # expected 라벨은 판정(decide_winner) 호출 전에 정규화한다.
+    # decide_winner 자체는 점수만으로 승자를 정하므로 expected 정규화 시점이
+    # 결과값에 영향을 주지는 않지만, "정규화 → 판정 → 비교" 순서를 코드상으로도
+    # 그대로 보이게 해 정합성을 명확히 하기 위함이다.
     expected = normalize_label(case.get("expected"))
+    verdict = decide_winner(score_cross, score_x, "Cross", "X", "UNDECIDED")
 
     print(f"Cross 점수: {score_cross}")
     print(f"X 점수: {score_x}")
