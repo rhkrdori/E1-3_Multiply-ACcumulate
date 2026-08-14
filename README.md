@@ -22,16 +22,18 @@ python main.py
 |---|---|---|
 | 1 | User input (3x3) | 3x3 필터 A/B와 3x3 패턴을 직접 입력해 판정 |
 | 2 | data.json analysis | `data.json`의 5x5, 13x13, 25x25 케이스 일괄 분석 |
+| 3 | 2D vs 1D comparison | 보너스 기능으로 2차원 배열 접근과 1차원 배열 접근 성능 비교 |
 
 실행 화면:
 
 ```text
-=== Mini NPU Simulator ===
+=== 미니 NPU 시뮬레이터 ===
 
-[Mode Select]
-1. User input (3x3)
-2. data.json analysis
-Select:
+[모드 선택]
+1. 사용자 입력 (3x3)
+2. data.json 분석
+3. 보너스: 2차원 vs 1차원 비교
+선택: 
 ```
 
 ## 4. 주요 기능
@@ -159,7 +161,7 @@ Failed: 3
 | expected는 한쪽 라벨을 요구하지만 실제 점수 차이는 매우 작음 |
 | 과제 요구사항의 epsilon 기반 비교를 지키면 `UNDECIDED` 처리가 타당 |
 
-### 제출용 실패 원인 분석
+### 실패 원인 분석
 
 `data.json` 분석 결과 실패한 케이스는 `size_5_1`, `size_13_2`, `size_25_1` 세 개이다.
 세 케이스 모두 입력 배열의 크기나 JSON 스키마가 잘못되어 실패한 것이 아니다.
