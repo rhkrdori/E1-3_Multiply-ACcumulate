@@ -149,7 +149,7 @@ def print_section(title):
 
 
 def print_performance_table(rows):
-    print(f"{'크기':<10}{'평균 시간(밀리초)':<16}{'곱셈-누적 횟수'}")
+    print(f"{'행렬 크기':<10}{'평균 시간(밀리초)':<16}{'곱셈-누적 횟수'}")
     print("-" * 36)
     for n, avg_ms in rows:
         print(f"{n}x{n:<7}{avg_ms:<16.4f}{n * n}")
@@ -416,7 +416,7 @@ def run_bonus_optimization():
     avg_1d_ms = measure_average_ms(lambda: mac_operation_flat(pattern_flat, filter_flat, n))
     improvement = ((avg_2d_ms - avg_1d_ms) / avg_2d_ms * 100.0) if avg_2d_ms else 0.0
 
-    print(f"\n크기: {n}x{n} (곱셈-누적 횟수: {n * n})")
+    print(f"\n행렬 크기: {n}x{n} (곱셈-누적 횟수: {n * n})")
     print(f"2차원 평균 시간: {avg_2d_ms:.4f} 밀리초")
     print(f"1차원 평균 시간: {avg_1d_ms:.4f} 밀리초")
     print(f"개선율: {improvement:.2f}%")
