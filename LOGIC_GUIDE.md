@@ -6,12 +6,11 @@
 
 이 프로젝트는 사람이 `+`(Cross)와 `X` 모양을 구분하는 과정을 숫자 계산으로 흉내 낸 **Mini NPU 시뮬레이터**다. 입력 패턴과 두 필터의 같은 위치 값을 각각 곱한 뒤 전부 더하는 MAC(Multiply-Accumulate) 연산을 수행한다. Cross 필터 점수가 더 크면 Cross, X 필터 점수가 더 크면 X로 판정한다. 두 점수가 부동소수점 오차 범위 안에서 같으면 억지로 하나를 고르지 않고 `UNDECIDED`로 처리한다.
 
-프로그램은 다음 두 방식으로 사용할 수 있다.
+프로그램은 다음 세 가지 모드로 사용할 수 있다.
 
 - 모드 1: 사용자가 3×3 필터와 패턴을 입력하고 결과를 즉시 확인한다.
 - 모드 2: `data.json`의 5×5, 13×13, 25×25 데이터를 일괄 검증하고 PASS/FAIL 및 성능을 요약한다.
-
-마지막에는 선택적으로 2차원 배열 방식과 1차원 배열 방식의 MAC 실행 시간을 비교한다.
+- 모드 3: 사용자가 지정한 N에 대해 2차원 배열 방식과 1차원 배열 방식의 MAC 실행 시간을 비교한다.
 
 ## 2. 전체 실행 흐름
 
@@ -20,25 +19,23 @@ main()
   ├─ 모드 선택
   │   ├─ 1 → run_mode1()
   │   │        필터 준비 → 패턴 입력 → MAC 두 번 → 승자 판정 → 성능 출력
-  │   └─ 2 → run_mode2()
-  │            JSON 로드 → 필터 정규화 → 케이스별 검증 → 성능 분석 → 결과 요약
-  └─ 보너스 실행 여부
-      └─ y → run_bonus_optimization()
-               2D MAC과 1D MAC 실행 시간 비교
+  │   ├─ 2 → run_mode2()
+  │   │        JSON 로드 → 필터 정규화 → 케이스별 검증 → 성능 분석 → 결과 요약
+  │   └─ 3 → run_bonus_optimization()
+  │            N 입력 → 2D/1D 데이터 준비 → 실행 시간 비교 → 개선율 출력
 ```
 
 **입력 준비 → 점수 계산 → 판정 → 검증 → 성능 분석**
 
 ```python
 def main():
-    mode = ask_choice("선택: ", ("1", "2"))
+    mode = ask_choice("선택: ", ("1", "2", "3"))
 
     if mode == "1":
         run_mode1()
-    else:
+    elif mode == "2":
         run_mode2()
-
-    if ask_yes_no("최적화 비교를 실행하시겠습니까? (y/n): "):
+    else:
         run_bonus_optimization()
 ```
 
@@ -81,12 +78,12 @@ def decide_winner(score_first, score_second,
 
 전역 상수 `EPSILON = 1e-9`를 사용하는 이유는 부동소수점 계산 때문이다. 컴퓨터에서는 수학적으로 같은 `0.9`도 계산 순서에 따라 `0.9000000000000000`과 `0.8999999999999999`처럼 표현될 수 있다. 단순히 `==` 또는 `>`만 사용하면 사실상 동점인 값을 승패로 잘못 판단할 수 있다.
 
-모드별 반환 라벨만 다르고 판정 원리는 같다.
+두 모드 모두 동점의 내부 판정값으로 `UNDECIDED`를 사용하며 판정 원리도 같다. 다만 사용자 화면에서는 `UNDECIDED`를 그대로 노출하지 않고 `판정 불가`로 표시한다.
 
-| 사용 위치 | 첫 번째 | 두 번째 | 동점 |
-|---|---|---|---|
-| 모드 1 | `A` | `B` | `판정 불가` |
-| 모드 2 | `Cross` | `X` | `UNDECIDED` |
+| 사용 위치 | 첫 번째 내부값 | 두 번째 내부값 | 동점 내부값 | 화면 표시 |
+|---|---|---|---|---|
+| 모드 1 | `A` | `B` | `UNDECIDED` | `판정 불가 (\|A-B\| < 1e-9)` |
+| 모드 2 | `Cross` | `X` | `UNDECIDED` | `display_label()`을 통해 `판정 불가` |
 
 판정 로직을 공통 함수로 만들어 epsilon 규칙을 한 곳에서 일관되게 적용한다.
 
@@ -108,10 +105,10 @@ def decide_winner(score_first, score_second,
 score_a = mac_operation(pattern, filter_a)
 score_b = mac_operation(pattern, filter_b)
 avg_ms = measure_average_ms(lambda: mac_operation(pattern, filter_a))
-verdict = decide_winner(score_a, score_b, "A", "B", "판정 불가")
+verdict = decide_winner(score_a, score_b, "A", "B", "UNDECIDED")
 ```
 
-`input_matrix(n, label)`은 각 행에 정확히 `n`개의 값이 들어왔는지, 모든 토큰이 `float`로 변환되는지 확인한다. 오류가 나면 프로그램 전체를 종료하지 않고 **그 행만 다시 입력**받는다. `ask_choice()`와 `ask_yes_no()`도 유효한 값이 들어올 때까지 재입력을 요청한다.
+`input_matrix(n, label)`은 각 행에 정확히 `n`개의 값이 들어왔는지, 모든 토큰이 `float`로 변환되는지 확인한다. 오류가 나면 프로그램 전체를 종료하지 않고 **그 행만 다시 입력**받는다. 모드와 필터 입력 방식은 `ask_choice()`가 유효한 값이 들어올 때까지 다시 입력받는다.
 
 ```python
 tokens = line.split()
@@ -194,13 +191,14 @@ def normalize_label(raw):
 `evaluate_case()` - 한 케이스마다 다음 검증과 계산을 수행한다.
 
 1. 케이스 키에서 N을 추출할 수 있는가?
-2. 크기 N에 대응하는 필터가 로드되어 있는가?
-3. `input` 필드가 존재하는가?
-4. 입력 패턴이 실제로 N×N인가?
-5. Cross와 X 필터가 모두 존재하는가?
-6. Cross 점수와 X 점수를 MAC으로 계산한다.
-7. epsilon 규칙으로 `Cross`, `X`, `UNDECIDED` 중 하나를 판정한다.
-8. `expected`를 정규화한 뒤 판정과 같으면 PASS, 다르면 FAIL로 기록한다.
+2. 케이스 값이 객체(`dict`)인가?
+3. 크기 N에 대응하는 필터가 로드되어 있는가?
+4. Cross와 X 필터가 모두 존재하는가?
+5. `input`이 실제 N×N 숫자 행렬인가?
+6. `expected`를 `Cross` 또는 `X`로 정규화할 수 있는가?
+7. Cross 점수와 X 점수를 MAC으로 계산한다.
+8. epsilon 규칙으로 `Cross`, `X`, `UNDECIDED` 중 하나를 판정한다.
+9. 판정이 정규화된 `expected`와 같으면 PASS, 다르면 FAIL로 기록한다.
 
 계산과 PASS/FAIL 비교 부분은 다음과 같다.
 
@@ -247,7 +245,7 @@ N×N 배열에서 모든 위치를 한 번씩 방문하므로 MAC의 연산 횟�
 
 일반화하면 방문 횟수는 `N × N = N²`이므로 시간 복잡도는 **O(N²)**, 점수를 저장하는 추가 공간은 상수 개뿐이므로 MAC 함수 자체의 추가 공간 복잡도는 **O(1)**이다. 실제 측정 시간은 운영체제와 Python 실행 환경의 영향을 받아 매번 달라질 수 있지만, N이 커질수록 연산량이 제곱으로 증가한다는 구조는 변하지 않는다.
 
-모드 2에서는 JSON에 없는 3×3 성능도 보여 주기 위해 `build_size3_sample()`로 표준 샘플을 만들고, 나머지 크기는 `find_sample_pattern()`으로 크기가 올바른 실제 패턴을 찾아 측정한다. 손상된 샘플 때문에 성능 분석 전체가 멈추지 않도록 측정할 수 없는 크기는 건너뛴다.
+모드 2에서는 JSON에 없는 3×3 성능도 보여 주기 위해 `generate_x(3)`와 `generate_cross(3)`로 표준 샘플을 생성해 측정한다. 현재 코드는 두 생성 함수가 측정용 람다 안에 있으므로 **3×3 행렬 생성 시간도 측정값에 포함**된다. 나머지 크기는 `find_sample_pattern()`으로 크기가 올바른 실제 패턴을 찾고 Cross 필터와 계산한다. 유효한 패턴이 없으면 필터 자체를 패턴으로 대신 사용하며, 측정할 필터와 패턴을 모두 구할 수 없는 크기는 건너뛴다.
 
 ## 8. 보너스: 2D와 1D 메모리 접근 비교
 
@@ -255,6 +253,8 @@ N×N 배열에서 모든 위치를 한 번씩 방문하므로 MAC의 연산 횟�
 
 - 2D 방식: `pattern[i][j]`, `filter[i][j]`로 접근한다.
 - 1D 방식: `flatten()`으로 길이 N²의 리스트를 만든 뒤 `pattern[i]`, `filter[i]`로 접근한다.
+
+2D 행렬 생성과 `flatten()` 변환은 시간 측정 전에 끝나므로 출력되는 1D 평균 시간에는 **평탄화 비용이 포함되지 않는다**. 비교 대상은 준비된 데이터에 대한 MAC 함수 호출 구간이다.
 
 두 함수 모두 N²번 곱하고 더하므로 이론적 시간 복잡도는 O(N²)로 같다. 차이는 반복문 구조와 리스트 접근 방식에서 생기는 상수 비용이다. 개선율은 다음 식으로 계산한다.
 
@@ -280,7 +280,9 @@ def mac_operation_flat(pattern_flat, filter_flat, n):
 | 판정 | `decide_winner()` | epsilon을 적용해 두 점수 비교 |
 | 표기 통일 | `normalize_label()` | `+`, `cross`, `x`를 표준 라벨로 변환 |
 | 패턴 생성 | `generate_cross()`, `generate_x()` | 임의 N 크기의 표준 모양 생성 |
-| 입력 | `ask_choice()`, `ask_yes_no()`, `input_matrix()` | 사용자 입력 검증 및 재입력 처리 |
+| 표시 | `display_label()`, `display_status()`, `format_number()`, `print_matrix()` | 내부값을 사용자용 문자열로 변환하고 행렬 출력 |
+| 입력 | `ask_choice()`, `input_matrix()` | 사용자 입력 검증 및 재입력 처리 |
+| 행렬 검증 | `matrix_shape()`, `validate_matrix()` | 행렬 크기 조회 및 N×N 숫자 행렬 여부 검사 |
 | JSON 해석 | `parse_size()`, `load_filters()` | 키에서 크기 추출 및 필터 내부 구조 생성 |
 | 케이스 검증 | `evaluate_case()` | 스키마·크기 검사, 계산, PASS/FAIL 반환 |
 | 성능 | `measure_average_ms()`, `print_performance_table()` | 반복 측정 및 N² 연산량 출력 |
